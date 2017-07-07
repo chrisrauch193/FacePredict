@@ -87,6 +87,20 @@ class Face:
         )
 
 
+class Person:
+
+    def __init__(self, name, face_classifier, emotion_classifier):
+        self.name = name
+        self.face_classifier = face_classifier
+        self.emotion_classifier = emotion_classifier
+
+    def __repr__(self):
+        return "{{id: {}, rep[0:5]: {}}}".format(
+            str(self.identity),
+            self.rep[0:5]
+        )
+
+
 class OpenFaceServerProtocol(WebSocketServerProtocol):
 
     def __init__(self):
@@ -113,13 +127,14 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             self.loadState(msg['images'], msg['training'], msg['people'])
         elif msg['type'] == "NULL":
             self.sendMessage('{"type": "NULL"}')
-        elif msg['type'] == "FRAME":
+        elif msg['type'] == "PREDICT_FRAME":
             self.processFrame(msg['dataURL'], msg['identity'])
             self.sendMessage('{"type": "PROCESSED"}')
-        elif msg['type'] == "TRAINING":
+        elif msg['type'] == "LEARN_FRAME":
             self.training = msg['val']
-            if not self.training:
-                self.trainSVM()
+            self.people.append(msg['val'].encode('ascii', 'ignore'))
+            print(self.people)
+            self.trainSVM(msg['name'])
         elif msg['type'] == "ADD_PERSON":
             self.people.append(msg['val'].encode('ascii', 'ignore'))
             print(self.people)
@@ -221,7 +236,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         }
         self.sendMessage(json.dumps(msg))
 
-    def trainSVM(self):
+    def trainSVM(self, name):
         print("+ Training SVM on {} labeled images.".format(len(self.images)))
         d = self.getData()
         if d is None:
@@ -325,9 +340,11 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                         name = "Unknown"
                 else:
                     name = self.people[identity]
-                cv2.putText(annotatedFrame, name, (bb.left(), bb.top() - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.75,
-                            color=(152, 255, 204), thickness=2)
+                msg = {
+                    "type": "PREDICTION",
+                    "val": name
+                }
+                self.sendMessage(json.dumps(msg))
 
         if not self.training:
             msg = {
@@ -336,22 +353,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             }
             self.sendMessage(json.dumps(msg))
 
-            plt.figure()
-            plt.imshow(annotatedFrame)
-            plt.xticks([])
-            plt.yticks([])
-
-            imgdata = StringIO.StringIO()
-            plt.savefig(imgdata, format='png')
-            imgdata.seek(0)
-            content = 'data:image/png;base64,' + \
-                urllib.quote(base64.b64encode(imgdata.buf))
-            msg = {
-                "type": "ANNOTATED",
-                "content": content
-            }
-            plt.close()
-            self.sendMessage(json.dumps(msg))
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)
