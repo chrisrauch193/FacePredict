@@ -131,7 +131,7 @@
             android:singleLine="false" />
 
         <Button
-            android:id="@+id/removePersonButton"
+            android:id="@+id/addPersonButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
